@@ -2,17 +2,12 @@ const domain = process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN;
 const storefrontAccessToken = process.env.NEXT_PUBLIC_SHOPIFY_ACCESS_TOKEN;
 
 async function shopifyFetch({ query, variables = {} }: { query: string; variables?: any }) {
-  // 1. URL Construction
-  // Ensure we are hitting the GraphQL endpoint, not the REST API.
-  // We remove any trailing slashes from the domain just in case.
   const cleanDomain = domain?.replace(/\/$/, '');
   const endpoint = `https://${cleanDomain}/api/2024-01/graphql.json`;
 
   const headers = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
-    // CRITICAL FIX: This is the specific header for Storefront API.
-    // If this is "X-Shopify-Access-Token", it will fail with UNAUTHORIZED.
     'X-Shopify-Storefront-Access-Token': storefrontAccessToken || '',
   };
 
@@ -21,7 +16,6 @@ async function shopifyFetch({ query, variables = {} }: { query: string; variable
       method: 'POST',
       headers,
       body: JSON.stringify({ query, variables }),
-      // ISR: Revalidate data every 60 seconds
       next: { revalidate: 60 },
     });
 
@@ -29,7 +23,6 @@ async function shopifyFetch({ query, variables = {} }: { query: string; variable
 
     if (data.errors) {
       console.error('Shopify GraphQL Errors:', data.errors);
-      // Throwing here ensures we see the error in the terminal
       throw new Error(data.errors[0].message || 'Shopify Error');
     }
 
@@ -46,8 +39,6 @@ async function shopifyFetch({ query, variables = {} }: { query: string; variable
   }
 }
 
-// 2. The Product Query
-// This maps your Shopify Data to your App's "Artwork" interface
 export async function getAllProducts() {
   const query = `
     query Products {
@@ -86,12 +77,10 @@ export async function getAllProducts() {
     return [];
   }
 
-  // Transform Shopify Data -> Your App's "Artwork" Shape
   return response.body.data.products.edges.map((edge: any) => {
     const product = edge.node;
     const image = product.images.edges[0]?.node;
 
-    // Rudimentary layout logic: If image is taller than wide, it's portrait
     let orientation = 'square';
     if (image) {
       if (image.height > image.width) orientation = 'portrait';
@@ -101,6 +90,7 @@ export async function getAllProducts() {
     return {
       id: product.id,
       title: product.title,
+      handle: product.handle,
       category: product.productType || 'Art',
       price: parseFloat(product.priceRange.minVariantPrice.amount),
       image: image ? image.url : 'https://placehold.co/600x600?text=No+Image',
@@ -108,4 +98,45 @@ export async function getAllProducts() {
       height: orientation === 'portrait' ? 'h-96' : orientation === 'landscape' ? 'h-64' : 'h-80',
     };
   });
+}
+
+export async function getProduct(handle: string) {
+  const query = `
+    query getProduct($handle: String!) {
+      product(handle: $handle) {
+        id
+        title
+        handle
+        descriptionHtml
+        priceRange {
+          minVariantPrice {
+            amount
+            currencyCode
+          }
+        }
+        images(first: 5) {
+          edges {
+            node {
+              url
+              altText
+            }
+          }
+        }
+        variants(first: 1) {
+          edges {
+            node {
+              id
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  const response = await shopifyFetch({
+    query,
+    variables: { handle }
+  });
+
+  return response.body?.data?.product;
 }

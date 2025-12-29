@@ -5,6 +5,7 @@ import ArtCard from './ArtCard';
 interface Product {
     id: string;
     title: string;
+    handle: string;
     category: string;
     price: number;
     image: string;
@@ -29,8 +30,8 @@ export default function MasonryGrid({ products }: { products: Product[] }) {
                 <h2 className="font-anton text-4xl uppercase text-white">Selected Works</h2>
             </div>
 
-            {/* Render the passed products */}
-            <div className="columns-1 md:columns-2 lg:columns-3 gap-8 max-w-7xl mx-auto space-y-8">
+            {/* Denser grid: lg:columns-4 or xl:columns-5 */}
+            <div className="columns-1 md:columns-2 lg:columns-4 xl:columns-5 gap-6 max-w-[1600px] mx-auto space-y-6">
                 {products.map((art) => (
                     <ArtCard key={art.id} art={art as any} />
                 ))}
